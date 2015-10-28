@@ -11,8 +11,9 @@ do
   local g = require("gpio")
   local alrm = function(t,nxt) tmr.alarm(1,t,0,nxt) end
 
-  function cancel()
-    tmr.cancel(1) 
+  function stop()
+    tmr.stop(1) 
+    off()
   end
 
   function on()
@@ -97,7 +98,7 @@ do
   M = {
     setPort = setPort,
     send = send,
-    cancel = cancel,
+    stop = stop,
     setDebug = setDebug,
     setNotify = setNotify
   }
