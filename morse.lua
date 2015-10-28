@@ -47,6 +47,8 @@ do
 
   local g = require("gpio")
   local alrm = function(t,nxt) tmr.alarm(1,t,0,nxt) end
+  local notify=nil
+  local debug=nil
 
   function cancel()
     tmr.cancel(1) 
@@ -64,26 +66,19 @@ do
     p=pt
   end
 
+  function setNotify(cb)
+    notify=cb
+  end
+
   function queue(str)
     r = wb.push(str:upper())
     if r ~= nil then
-      tx()
+      if active == 0 then
+        active = 1
+        toot(wb.pop(), 1, wordDone)
+      end
     end
     return r
-  end
-
-  function tx()
-    if active == 0 then
-      active = 1
-      toot(wb.pop(), 1, wordDone)
-    end
-  end
-
-  function letters(w, i)
-    if i > w:len() then 
-      return wordDone()
-    end
-    toot(w, 1, function() letters(w,i+1) end)
   end
 
   function toot(w,idx,cb)
@@ -92,12 +87,16 @@ do
     end
     bval=w:byte(idx)
     ms=t[bval]
-    print(bval,ms)
+    if debug ~= nil then print(bval,ms) end
     doBlinks(ms,1,function() toot(w,idx+1,cb) end)
   end
 
+  function setDebug(s)
+    debug=s
+  end
+
   function doBlinks(ms,idx,cb)
-    if idx > ms:len() then
+    if ms == nil or idx > ms:len() then
       return lpause(cb)
     end
     c=ms:sub(idx,idx)
@@ -112,7 +111,9 @@ do
     wpause(function()
       nxt = wb.pop()
       if nxt ~= nil then wpause(function() toot(nxt,1,wordDone) end) 
-      else active = 0
+      else
+        active = 0
+        if notify ~= nil then notify() end
       end
     end)
   end
@@ -135,7 +136,7 @@ do
 
   function blink(t, cb)
     on()
-    print("blink")
+    if debug ~= nil then print("blink") end
     alrm(t/2, function () off() alrm(t/2, cb) end)
   end
   
@@ -143,7 +144,9 @@ do
   M = {
     setPort = setPort,
     queue = queue,
-    cancel = cancel
+    cancel = cancel,
+    setDebug = setDebug,
+    setNotify = setNotify
   }
 end
 return M
