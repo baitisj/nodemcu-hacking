@@ -60,11 +60,10 @@ def openserial(args):
 
 if __name__ == '__main__':
     # parse arguments or use defaults
-    parser = argparse.ArgumentParser(description='ESP8266 Lua script uploader.')
+    parser = argparse.ArgumentParser(description='ESP8266 Lua script SENDER - does NOT write to filesystem. Saves you typing!')
     parser.add_argument('-p', '--port',    default='/dev/ttyUSB0', help='Device name, default /dev/ttyUSB0')
     parser.add_argument('-b', '--baud',    default=9600,           help='Baudrate, default 9600')
     parser.add_argument('-f', '--src',     default='main.lua',     help='Source file on computer, default main.lua')
-    parser.add_argument('-t', '--dest',    default=None,           help='Destination file on MCU, default to source file name')
     parser.add_argument('-v', '--verbose', action='store_true',    help="Show progress messages.")
     parser.add_argument('-l', '--list',    action='store_true',    help='List files on device')
     args = parser.parse_args()
@@ -78,9 +77,6 @@ if __name__ == '__main__':
                 break
             sys.stdout.write(char)
         sys.exit(0)
-
-    if args.dest is None:
-        args.dest = basename(args.src)
 
     # open source file for reading
     try:
