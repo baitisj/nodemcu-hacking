@@ -100,13 +100,16 @@ function printTemp()
   if response == nil then return end
   local err = "ERR"
   for i = 1, #response, 1 do
-    local s = response[i][1] or err
-    local t = err
+    local s,t = err,err
+    if response[i][1] ~= nil then
+      local h="%02x"
+      s = string.format(h:rep(8),response[i][1]:byte(1,8))
+    end
     if response[i][2] ~= nil then
-      local t = response[i][2] .. "." .. response[i][3] .. " deg "
+      t = response[i][2] .. "." .. response[i][3] .. " deg"
     end
     local m = response[i][4] or err
-    print ("Temp of "..s..": "..t..m)
+    print ("\nTemp at "..s..": "..t.." "..m)
   end
 end
 
