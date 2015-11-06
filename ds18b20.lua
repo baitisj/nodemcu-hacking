@@ -112,7 +112,7 @@ function readTemp(cb, address, uts)
   cb = cb or printTemp
   if address == nil then
     local devs = addrs(1)
-    if table.getn(devs) == 0 then
+    if #devs == 0 then
       msg = "No one wire devices found on pin "..pin
       alrm(1,cb)
       return
