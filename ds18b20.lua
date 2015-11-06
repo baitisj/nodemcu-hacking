@@ -2,17 +2,16 @@ local M
 do
 
 -- DS18B20 dq pin
-local pin = nil
+local pin = 4
 -- DS18B20 default pin
 local defaultPin = 4
 -- Delay in ms for parasite power
 local delay = 700
 -- Return values
-local ipart = nil
-local fpart = nil
-local msg = nil
-local unit = nil
-local addr = nil
+local unit = 'C'
+local adrs = nil
+
+local response = {}
 
 -- Table module
 local table = table
@@ -25,7 +24,7 @@ local tmr = tmr
 local alrm = function(t,nxt) tmr.alarm(6,t,0,nxt) end
 
 function setup(dq)
-  pin = dq or defaultPin
+  pin = dq or pin
   ow.setup(pin)
 end
 
@@ -48,101 +47,101 @@ function addrs(max_devs)
 end
 
 function setDelay(t)
-  delay = t
+  delay = t or 1
+  if t < 1 then delay = 1 end
 end
 
 function tcb(cb)
+  response = {}
   local present = ow.reset(pin)
-  ow.select(pin, addr)
-  ow.write(pin,0xBE,1)
-  -- print("P="..present)
-  local data = string.char(ow.read(pin))
-  for i = 1, 8 do
-    data = data .. string.char(ow.read(pin))
-  end
-  -- print(data:byte(1,9))
-  local crc = ow.crc8(string.sub(data,1,8))
-  -- print("CRC="..crc)
-  if (crc == data:byte(9)) then
-    local t = (data:byte(1) + data:byte(2) * 256)
-    if (t > 32767) then
-      t = t - 65536
+  for i = 1, #adrs, 1 do
+    tmr.wdclr()
+    ow.select(pin, adrs[i])
+    ow.write(pin,0xBE,1)
+    local data = string.char(ow.read(pin))
+    for j = 1, 8 do
+      data = data .. string.char(ow.read(pin))
     end
-
-    if (addr:byte(1) == 0x28) then
-      t = t * 625  -- DS18B20, 4 fractional bits
+    local crc = ow.crc8(string.sub(data,1,8))
+    if (crc ~= data:byte(9)) then
+      table.insert(response, {adrs[i],null,null,"Invalid TX CRC"} )
     else
-      t = t * 5000 -- DS18S20, 1 fractional bit
-    end
+      local t = (data:byte(1) + data:byte(2) * 256)
+      if (t > 32767) then
+        t = t - 65536
+      end
 
-    if(unit == nil or unit == 'C') then
-      unit = 'C'
-    elseif(unit == 'F') then
-      t = (t * 900) / 500 + 320000
-    elseif(unit == 'K') then
-      t = t + 2731500
-    else
-      msg="Invalid unit: "..unit
-      alrm(1,cb)
-      return
-    end
+      if (adrs[i]:byte(1) == 0x28) then
+        t = t * 625  -- DS18B20, 4 fractional bits
+      else
+        t = t * 5000 -- DS18S20, 1 fractional bit
+      end
 
-    ipart = t / 10000
-    fpart = t - (ipart * 10000)
-    msg = unit
-    alrm(1,cb)
-    return
-  else
-    msg = "Invalid CRC!"
-    alrm(1,cb)
-    return
+      if(unit == 'C') then
+        -- nada
+      elseif(unit == 'F') then
+        t = (t * 900) / 500 + 320000
+      elseif(unit == 'K') then
+        t = t + 2731500
+      else
+        table.insert(response, {adrs[i],null,null,"Invalid unit: "..unit} )
+        alrm(1,cb)
+        return
+      end
+      local ip = t / 10000
+      local fp = t - (ip * 10000)
+      table.insert(response, {adrs[i],ip,fp,unit} )
+    end
   end
+  alrm(1,cb)
 end
 
 function printTemp()
-  local i,f,m=get()
-  print ("DS18B20 temp: "..i.."."..f.." deg "..m)
+  if response == nil then return end
+  local err = "ERR"
+  for i = 1, #response, 1 do
+    local s = response[i][1] or err
+    local t = err
+    if response[i][2] ~= nil then
+      local t = response[i][2] .. "." .. response[i][3] .. " deg "
+    end
+    local m = response[i][4] or err
+    print ("Temp of "..s..": "..t..m)
+  end
 end
 
-function readTemp(cb, address, uts)
-  ipart = nil
-  fpart = nil
-  unit = uts
-  addr = address
+function readTemp(cb, ads, uts)
+  response={}
+  adrs = ads
+  unit = uts or 'C'
   cb = cb or printTemp
-  if address == nil then
-    local devs = addrs(1)
-    if #devs == 0 then
-      msg = "No one wire devices found on pin "..pin
+  if ads == nil then
+    adrs  = addrs(1)
+    if #adrs == 0 then
+      table.insert(response, {null,null,null,"No one wire devices found on pin "..pin} )
       alrm(1,cb)
       return
     end
-    addr=devs[1]
   end
-  local crc = ow.crc8(string.sub(addr,1,7))
-  if (crc == addr:byte(8)) then
-    if ((addr:byte(1) == 0x10) or (addr:byte(1) == 0x28)) then
-      -- print("Device is a DS18S20 family device.")
-      ow.reset(pin)
-      ow.select(pin, addr)
-      ow.write(pin, 0x44, 1)
-      if delay < 1 then delay = 1 end
-      alrm(delay,function () tcb(cb) end)
-      return
+  for i = 1, #adrs, 1 do
+    local crc = ow.crc8(string.sub(adrs[i],1,7))
+    if (crc ~= adrs[i]:byte(8)) then
+      table.insert(response, {adrs[i],null,null,"Invalid RX CRC"} )
     else
-      msg = "Device family is not recognized."
-      alrm(1,cb)
-      return
+      if ((adrs[i]:byte(1) == 0x10) or (adrs[i]:byte(1) == 0x28)) then
+        -- print("Device is a DS18S20 family device.")
+        ow.reset(pin)
+        ow.select(pin, adrs[i])
+        ow.write(pin, 0x44, 1)
+      else
+        table.insert(response, {adrs[i],null,null,"Device family not recognized"} )
+      end
     end
-  else
-    msg = "Invalid CRC!"
-    alrm(1,cb)
-    return
   end
+  alrm(delay,function () tcb(cb) end)
 end
 
-function get()
-  return ipart, fpart, msg
+function get() return response
 end
 
 -- expose
@@ -156,3 +155,4 @@ M = {
 
 end
 return M
+
