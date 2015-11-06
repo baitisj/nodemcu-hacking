@@ -1,5 +1,5 @@
-morse=require("morse")
-tp=require("postTemp")
+local morse=require("morse")
+local tp=require("postTemp")
 morse.setPort(0)
 
 function run()
