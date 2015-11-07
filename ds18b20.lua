@@ -64,7 +64,7 @@ function tcb(cb)
     end
     local crc = ow.crc8(string.sub(data,1,8))
     if (crc ~= data:byte(9)) then
-      table.insert(response, {adrs[i],null,null,"Invalid TX CRC"} )
+      table.insert(response, {adrs[i],nil,nil,"Invalid TX CRC"} )
     else
       local t = (data:byte(1) + data:byte(2) * 256)
       if (t > 32767) then
@@ -84,7 +84,7 @@ function tcb(cb)
       elseif(unit == 'K') then
         t = t + 2731500
       else
-        table.insert(response, {adrs[i],null,null,"Invalid unit: "..unit} )
+        table.insert(response, {adrs[i],nil,nil,"Invalid unit: "..unit} )
         alrm(1,cb)
         return
       end
@@ -119,30 +119,43 @@ function readTemp(cb, ads, uts)
   unit = uts or 'C'
   cb = cb or printTemp
   if ads == nil then
-    adrs  = addrs(1)
-    if #adrs == 0 then
-      table.insert(response, {null,null,null,"No one wire devices found on pin "..pin} )
-      alrm(1,cb)
-      return
-    end
+    adrs = addrs(1)
   end
-  for i = 1, #adrs, 1 do
-    local crc = ow.crc8(string.sub(adrs[i],1,7))
-    if (crc ~= adrs[i]:byte(8)) then
-      table.insert(response, {adrs[i],null,null,"Invalid RX CRC"} )
-    else
-      if ((adrs[i]:byte(1) == 0x10) or (adrs[i]:byte(1) == 0x28)) then
-        -- print("Device is a DS18S20 family device.")
-        ow.reset(pin)
-        ow.select(pin, adrs[i])
-        ow.write(pin, 0x44, 1)
-      else
-        table.insert(response, {adrs[i],null,null,"Device family not recognized"} )
-      end
-    end
+  if #adrs == 0 then
+    table.insert(response, {nil,nil,nil,"No one wire devices found on pin "..pin} )
+    alrm(1,cb)
+    return
   end
-  alrm(delay,function () tcb(cb) end)
+  lcnvrt(1,cb)
 end
+
+function lcnvrt(idx, cb)
+  if idx > #adrs then 
+    alrm(delay, function() tcb(cb) end)
+    return
+  else
+    local crc = ow.crc8(string.sub(adrs[idx],1,7))
+    if (crc ~= adrs[idx]:byte(8)) then
+      table.insert(response, {adrs[idx],nil,nil,"Address CRC mismatch"} )
+    else
+      cnvrtT(adrs[idx])
+    end
+  end
+  alrm(delay, function() lcnvrt(idx+1, cb) end)
+  return
+end
+
+function cnvrtT (addr)
+  if (addr:byte(1) == 0x10) or (addr:byte(1) == 0x28) then
+    -- print("Device is a DS18S20 family device.")
+    ow.reset(pin)
+    ow.select(pin, addr)
+    ow.write(pin, 0x44, 1)
+  else
+    table.insert(response, {addr,nil,nil,"Device family not recognized"} )
+  end
+end
+
 
 function get() return response
 end
