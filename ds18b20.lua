@@ -6,8 +6,9 @@ local pin = 4
 -- DS18B20 default pin
 local defaultPin = 4
 -- Delay in ms for parasite power
-local rdelay = 700
-local sdelay = 1
+local sdelay = 700
+local idelay = 1
+local rdelay = 1
 -- Return values
 local unit = 'C'
 local adrs = nil
@@ -47,10 +48,10 @@ function addrs(max_devs)
   return devs
 end
 
-function setDelay(r,s)
-  rdelay = r or 1
+function setDelay(s,i,r)
   sdelay = s or 1
-  if r < 1 then rdelay = 1 end
+  idelay = i or 1
+  rdelay = r or 1
 end
 
 function printTemp()
@@ -122,13 +123,13 @@ function rscratch(idx, cb)
     local fp = t - (ip * 10000)
     table.insert(response, {adrs[idx],ip,fp,unit} )
   end
-  alrm(sdelay, function() rscratch(idx+1, cb) end)
+  alrm(rdelay, function() rscratch(idx+1, cb) end)
   return
 end
 
 function lcnvrt(idx, cb)
   if idx > #adrs then 
-    alrm(rdelay, function() rscratch(1, cb) end)
+    alrm(idelay, function() rscratch(1, cb) end)
     return
   else
     local crc = ow.crc8(string.sub(adrs[idx],1,7))
@@ -138,7 +139,7 @@ function lcnvrt(idx, cb)
       cnvrtT(adrs[idx])
     end
   end
-  alrm(rdelay, function() lcnvrt(idx+1, cb) end)
+  alrm(sdelay, function() lcnvrt(idx+1, cb) end)
   return
 end
 
