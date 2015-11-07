@@ -6,7 +6,8 @@ local pin = 4
 -- DS18B20 default pin
 local defaultPin = 4
 -- Delay in ms for parasite power
-local delay = 700
+local rdelay = 700
+local sdelay = 1
 -- Return values
 local unit = 'C'
 local adrs = nil
@@ -46,59 +47,16 @@ function addrs(max_devs)
   return devs
 end
 
-function setDelay(t)
-  delay = t or 1
-  if t < 1 then delay = 1 end
-end
-
-function tcb(cb)
-  response = {}
-  local present = ow.reset(pin)
-  for i = 1, #adrs, 1 do
-    tmr.wdclr()
-    ow.select(pin, adrs[i])
-    ow.write(pin,0xBE,1)
-    local data = string.char(ow.read(pin))
-    for j = 1, 8 do
-      data = data .. string.char(ow.read(pin))
-    end
-    local crc = ow.crc8(string.sub(data,1,8))
-    if (crc ~= data:byte(9)) then
-      table.insert(response, {adrs[i],nil,nil,"Invalid TX CRC"} )
-    else
-      local t = (data:byte(1) + data:byte(2) * 256)
-      if (t > 32767) then
-        t = t - 65536
-      end
-
-      if (adrs[i]:byte(1) == 0x28) then
-        t = t * 625  -- DS18B20, 4 fractional bits
-      else
-        t = t * 5000 -- DS18S20, 1 fractional bit
-      end
-
-      if(unit == 'C') then
-        -- nada
-      elseif(unit == 'F') then
-        t = (t * 900) / 500 + 320000
-      elseif(unit == 'K') then
-        t = t + 2731500
-      else
-        table.insert(response, {adrs[i],nil,nil,"Invalid unit: "..unit} )
-        alrm(1,cb)
-        return
-      end
-      local ip = t / 10000
-      local fp = t - (ip * 10000)
-      table.insert(response, {adrs[i],ip,fp,unit} )
-    end
-  end
-  alrm(1,cb)
+function setDelay(r,s)
+  rdelay = r or 1
+  sdelay = s or 1
+  if r < 1 then rdelay = 1 end
 end
 
 function printTemp()
   if response == nil then return end
   local err = "ERR"
+  print ("\n")
   for i = 1, #response, 1 do
     local s,t = err,err
     if response[i][1] ~= nil then
@@ -109,7 +67,7 @@ function printTemp()
       t = response[i][2] .. "." .. response[i][3] .. " deg"
     end
     local m = response[i][4] or err
-    print ("\nTemp at "..s..": "..t.." "..m)
+    print ("Temp at "..s..": "..t.." "..m)
   end
 end
 
@@ -129,9 +87,48 @@ function readTemp(cb, ads, uts)
   lcnvrt(1,cb)
 end
 
+function rscratch(idx, cb)
+  if idx > #adrs then 
+    alrm(1, cb)
+    return
+  end
+  local data,crc = rdT(adrs[idx])
+  if (crc ~= data:byte(9)) then
+    table.insert(response, {adrs[idx],nil,nil,"Invalid TX CRC"} )
+  else
+    local t = (data:byte(1) + data:byte(2) * 256)
+    if (t > 32767) then
+      t = t - 65536
+    end
+
+    if (adrs[idx]:byte(1) == 0x28) then
+      t = t * 625  -- DS18B20, 4 fractional bits
+    else
+      t = t * 5000 -- DS18S20, 1 fractional bit
+    end
+
+    if(unit == 'C') then
+      -- nada
+    elseif(unit == 'F') then
+      t = (t * 900) / 500 + 320000
+    elseif(unit == 'K') then
+      t = t + 2731500
+    else
+      table.insert(response, {adrs[idx],nil,nil,"Invalid unit: "..unit} )
+      alrm(1,cb)
+      return
+    end
+    local ip = t / 10000
+    local fp = t - (ip * 10000)
+    table.insert(response, {adrs[idx],ip,fp,unit} )
+  end
+  alrm(sdelay, function() rscratch(idx+1, cb) end)
+  return
+end
+
 function lcnvrt(idx, cb)
   if idx > #adrs then 
-    alrm(delay, function() tcb(cb) end)
+    alrm(rdelay, function() rscratch(1, cb) end)
     return
   else
     local crc = ow.crc8(string.sub(adrs[idx],1,7))
@@ -141,8 +138,20 @@ function lcnvrt(idx, cb)
       cnvrtT(adrs[idx])
     end
   end
-  alrm(delay, function() lcnvrt(idx+1, cb) end)
+  alrm(rdelay, function() lcnvrt(idx+1, cb) end)
   return
+end
+
+function rdT (addr)
+  ow.reset(pin)
+  ow.select(pin, addr)
+  ow.write(pin,0xBE,1)
+  local data = string.char(ow.read(pin))
+  for j = 1, 8 do
+    data = data .. string.char(ow.read(pin))
+  end
+  local crc = ow.crc8(string.sub(data,1,8))
+  return data,crc
 end
 
 function cnvrtT (addr)
