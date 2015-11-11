@@ -3,8 +3,6 @@ do
 
 -- DS18B20 dq pin
 local pin = 4
--- DS18B20 default pin
-local defaultPin = 4
 -- Delay in ms for parasite power
 local sdelay = 700
 local idelay = 1
