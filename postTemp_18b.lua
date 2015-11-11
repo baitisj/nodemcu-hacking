@@ -50,7 +50,7 @@ function start(cb)
   sk:on("receive", function(sck,c) print(c) end)
   sk:on("connection", function(sck,c) itr(1,sck,cb) end)
   sk:on("sent", function(sck,c) nextCB(sck) end)
-  sk:connect(port,ip)
+  sk:connect(port,host)
 end
 
 function send(itr,sck,id,r)
