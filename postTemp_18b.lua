@@ -7,7 +7,6 @@ local ds=require("ds18b20")
 local nextCB = nil
 local sk = nil
 local r = nil
-local idx = 1
 local alrm = function(t,nxt) tmr.alarm(5,t,0,nxt) end
 local a = nil
 
@@ -30,18 +29,18 @@ function itr(idx,sck,cb)
   end
   local t = nil
   local id = nil
-  if r[i][1] ~= nil then
+  if r[idx][1] ~= nil then
     local h="%02x"
-    id = string.format(h:rep(8),r[i][1]:byte(1,8))
+    id = string.format(h:rep(8),r[idx][1]:byte(1,8))
   end
-  if r[i][2] ~= nil then
-    t = r[i][2].."."..r[i][3]
+  if r[idx][2] ~= nil then
+    t = r[idx][2].."."..r[idx][3]
   end
   if id and t then
-    send(itr,sck,id,r)
+    send(itr,sck,id,t)
     return
   end
-  alrm(1,function() itr(i+1,sck,cb) end)
+  alrm(1,function() itr(idx+1,sck,cb) end)
 end
 
 function start(cb)
@@ -53,11 +52,11 @@ function start(cb)
   sk:connect(port,host)
 end
 
-function send(itr,sck,id,r)
+function send(itr,sck,id,t)
   print("->send")
   nextCB = function(sck) alrm(1,itr(i+1,sck,cb)) end
   sk:on("sent", function(sck,c) nextCB(sck) end)
-  sck:send("GET /iot/update?data="..id..","..r.." HTTP/1.1\r\nHost: "..host.."\r\nConnection: keep-alive\r\nAccept: */*\r\n\r\n")
+  sck:send("GET /iot/update?data="..id..","..t.." HTTP/1.1\r\nHost: "..host.."\r\nConnection: keep-alive\r\nAccept: */*\r\n\r\n")
 end
 -- expose
 M = {
