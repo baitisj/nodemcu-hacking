@@ -20,9 +20,11 @@ function postTemp()
 end
 
 function itr(idx,sck,cb)
-  print ("->itr "..idx)
   if idx > #r then
-    if sck ~= nil then sck:close() end
+    if sck ~= nil then 
+      sck:close() 
+      sk = nil
+    end
     if cb ~= nil then cb() end
     return
   end
@@ -43,15 +45,15 @@ function itr(idx,sck,cb)
 end
 
 function start(cb)
-  print("->start")
-  sk = sk or net.createConnection(net.TCP,0)
-  sk:on("receive", function(sck,c) print(c) end)
-  sk:on("connection", function(sck,c) itr(1,sck,cb) end)
+  if (sk == nil) then
+    sk = net.createConnection(net.TCP,0)
+    sk:on("receive", function(sck,c) print(c) end)
+    sk:on("connection", function(sck,c) itr(1,sck,cb) end)
+  end
   sk:connect(port,host)
 end
 
 function send(i,sck,id,t)
-  print("->send")
   sk:on("sent", function(sck,c) itr(i+1,sck,cb) end)
   sck:send("GET /iot/update?data="..id..","..t.." HTTP/1.1\r\nHost: "..host.."\r\nConnection: keep-alive\r\nAccept: */*\r\n\r\n")
 end
