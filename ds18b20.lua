@@ -4,7 +4,7 @@ do
 -- DS18B20 dq pin
 local pin = 4
 -- Delay in ms for parasite power
-local sdelay = 700
+local sdelay = 1000
 local idelay = 1
 local rdelay = 1
 -- Return values
