@@ -1,7 +1,7 @@
 local M
 do
 local host = "192.168.8.2"
-local port = 60124
+local port = 8000
 local net = net
 local ds=require("ds18b20")
 local sk = nil
